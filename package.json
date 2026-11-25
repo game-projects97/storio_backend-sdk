@@ -1,0 +1,22 @@
+{
+  "name": "@storio/platform-sdk",
+  "version": "0.2.2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "pack:artifact": "npm run build && node scripts/pack.mjs",
+    "verify": "npm run build && node scripts/verify.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}
