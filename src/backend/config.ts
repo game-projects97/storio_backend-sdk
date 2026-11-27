@@ -1,5 +1,5 @@
 import { gameScope } from "./http/paths.ts";
-import type { Environment } from "../types.ts";
+import type { Environment } from "./internal/auth/types.ts";
 
 function resolveApiBaseUrl(baseUrl: string): string {
   if (baseUrl.startsWith("/")) {

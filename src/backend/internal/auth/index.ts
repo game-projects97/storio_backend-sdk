@@ -6,23 +6,23 @@ import type {
   GuestCredentials,
   Session,
   StartupResult,
-} from "../../types.ts";
-import type { resolveBackendConfig } from "../config.ts";
-import { BackendError } from "../http/error.ts";
-import { gameScope } from "../http/paths.ts";
+} from "./types.ts";
+import type { resolveBackendConfig } from "../../config.ts";
+import { BackendError } from "../../http/error.ts";
+import { gameScope } from "../../http/paths.ts";
 import {
   isNetworkFailure,
   type createRequest,
   type HttpRequest,
-} from "../http/request.ts";
+} from "../../http/request.ts";
 import {
   parseBootstrap,
   parseCustomLink,
   parseCustomSession,
   parseGuest,
   parseSession,
-} from "../http/responses.ts";
-import { waitFor } from "./wait-for.ts";
+} from "../../http/responses.ts";
+import { waitFor } from "../wait-for/index.ts";
 
 export type AuthenticatedRequest = <T>(
   method: string,

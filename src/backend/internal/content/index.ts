@@ -3,14 +3,14 @@ import type {
   PublishedChartsPage,
   PublishedContentOptions,
   PublishedNoticesPage,
-} from "../../types.ts";
-import { publishedContentPath } from "../http/paths.ts";
+} from "./types.ts";
+import { publishedContentPath } from "../../http/paths.ts";
 import {
   parseCharts,
   parseNotices,
   parsePublishedChart,
-} from "../http/responses.ts";
-import type { AuthenticatedRequest } from "./auth.ts";
+} from "../../http/responses.ts";
+import type { AuthenticatedRequest } from "../auth/index.ts";
 
 export class Content {
   constructor(

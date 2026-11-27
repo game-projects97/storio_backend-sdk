@@ -4,20 +4,21 @@ import type {
   CustomLinkResult,
   CustomSession,
   GuestCredentials,
+  Session,
+  StartupResult,
+} from "./internal/auth/types.ts";
+import type {
   PublishedChart,
   PublishedChartsPage,
   PublishedContentOptions,
   PublishedNoticesPage,
-  SavedProgress,
-  SaveProgress,
-  Session,
-  StartupResult,
-} from "../types.ts";
+} from "./internal/content/types.ts";
+import type { SavedProgress, SaveProgress } from "./internal/progress/types.ts";
 import { resolveBackendConfig, type BackendOptions } from "./config.ts";
 import { createRequest } from "./http/request.ts";
-import { Auth, type GetGuestCredentials } from "./internal/auth.ts";
-import { Content } from "./internal/content.ts";
-import { Progress } from "./internal/progress.ts";
+import { Auth, type GetGuestCredentials } from "./internal/auth/index.ts";
+import { Content } from "./internal/content/index.ts";
+import { Progress } from "./internal/progress/index.ts";
 
 /** Storio 게임 백엔드 SDK. 로컬 저장과 계정 이전은 게임에서 처리한다. */
 export class Backend {

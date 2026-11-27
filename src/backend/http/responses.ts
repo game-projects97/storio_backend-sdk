@@ -3,11 +3,13 @@ import type {
   CustomLinkResult,
   CustomSession,
   GuestCredentials,
+  Session,
+} from "../internal/auth/types.ts";
+import type {
   PublishedChart,
   PublishedChartsPage,
   PublishedNoticesPage,
-  Session,
-} from "../../types.ts";
+} from "../internal/content/types.ts";
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

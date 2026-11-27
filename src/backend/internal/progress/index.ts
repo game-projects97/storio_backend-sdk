@@ -1,6 +1,6 @@
-import type { SavedProgress, SaveProgress } from "../../types.ts";
-import type { AuthenticatedRequest } from "./auth.ts";
-import { waitFor } from "./wait-for.ts";
+import type { SavedProgress, SaveProgress } from "./types.ts";
+import type { AuthenticatedRequest } from "../auth/index.ts";
+import { waitFor } from "../wait-for/index.ts";
 
 export class Progress {
   private readonly saves = new Map<

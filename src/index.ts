@@ -8,12 +8,16 @@ export type {
   CustomSession,
   CustomLinkResult,
   StartupResult,
+} from "./backend/internal/auth/types.ts";
+export type {
   Progress,
   SavedProgress,
   SaveProgress,
+} from "./backend/internal/progress/types.ts";
+export type {
   PublishedChart,
   PublishedChartsPage,
   PublishedNotice,
   PublishedNoticesPage,
   PublishedContentOptions,
-} from "./types.ts";
+} from "./backend/internal/content/types.ts";
