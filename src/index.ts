@@ -1,5 +1,5 @@
-export { PlatformError } from "./api/error.ts";
-export { PlatformClient } from "./client/platform.ts";
+export { BackendError } from "./api/error.ts";
+export { Backend } from "./client/platform.ts";
 export type {
   Bootstrap,
   GuestCredentials,

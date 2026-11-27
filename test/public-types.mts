@@ -1,6 +1,6 @@
 import {
-  PlatformClient,
-  PlatformError,
+  Backend,
+  BackendError,
   type Bootstrap,
   type CustomCredentials,
   type CustomLinkResult,
@@ -16,9 +16,9 @@ import {
   type SaveProgress,
   type Session,
   type StartupResult,
-} from "@storio/platform-sdk";
+} from "backend-sdk";
 
-export async function checkPublicTypes(client: PlatformClient): Promise<void> {
+export async function checkPublicTypes(client: Backend): Promise<void> {
   const bootstrap: Bootstrap = await client.bootstrap();
   const guest: GuestCredentials = await client.createGuest();
   const startup: StartupResult = await client.startGuestSession(
@@ -50,7 +50,7 @@ export async function checkPublicTypes(client: PlatformClient): Promise<void> {
   const customSession: CustomSession = await client.signupCustom(custom);
   const linked: CustomLinkResult = await client.linkGuestToCustom(custom);
   const relogin: CustomSession = await client.loginCustom(custom);
-  const error: Error = new PlatformError(401, "session_expired");
+  const error: Error = new BackendError(401, "session_expired");
   void [
     bootstrap,
     startup,

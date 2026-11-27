@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { PlatformClient, PlatformError } from "@storio/platform-sdk";
+import { Backend, BackendError } from "backend-sdk";
 
 const options = {
   baseUrl: "/api/v1",
@@ -87,7 +87,7 @@ test("custom signup and login apply the new session only after a valid response"
     auth.push(bearer);
     return Response.json(saved);
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   client.setSession("previous");
   const pending = client.signupCustom(credentials);
@@ -120,7 +120,7 @@ test("an older custom login cannot win after a newer account selection", async (
     );
     return Response.json(saved);
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   const oldLogin = client.loginCustom(credentials);
   const newLogin = client.loginCustom({ ...credentials, custom_id: "second" });
@@ -155,7 +155,7 @@ test("failed or canceled custom authentication keeps the current session", async
     );
     return Response.json(saved);
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   client.setSession("previous");
   await assert.rejects(client.signupCustom(credentials, AbortSignal.abort()), {
@@ -164,7 +164,7 @@ test("failed or canceled custom authentication keeps the current session", async
   assert.equal(signupCalls, 0);
   await assert.rejects(
     client.signupCustom(credentials),
-    (error: unknown) => error instanceof PlatformError && error.status === 409,
+    (error: unknown) => error instanceof BackendError && error.status === 409,
   );
   await assert.rejects(client.loginCustom(credentials, aborted.signal), {
     name: "AbortError",
@@ -201,7 +201,7 @@ test("link response loss is returned and explicit replay keeps the original play
     bearerHistory.push(bearer);
     return Response.json(saved);
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   const originalPlayerId = "player-old";
   client.setSession("guest-token");
@@ -239,12 +239,12 @@ test("link rejects an authentication error without clearing an otherwise valid s
       ? Response.json({ code: "unauthorized" }, { status: 401 })
       : Response.json(saved);
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   client.setSession("guest-token");
   await assert.rejects(
     client.linkGuestToCustom(credentials),
-    (error: unknown) => error instanceof PlatformError && error.status === 401,
+    (error: unknown) => error instanceof BackendError && error.status === 401,
   );
   assert.equal((await client.readProgress()).version, 6);
 });
@@ -272,7 +272,7 @@ test("published notices and charts return the actual locale and forward paginati
     assert.ok(parsed.pathname.endsWith("/chart"));
     return Response.json({ items: [chart], next_cursor: null });
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   client.setSession("active");
   const query = { locale: "ko-KR", fallbackLocale: "en", cursor };
@@ -294,7 +294,7 @@ test("published lists reject empty and invalid continuation cursors", async (t) 
         : { items: [notice], next_cursor: "not-a-uuid" },
     ),
   );
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   client.setSession("active");
   await assert.rejects(client.readPublishedCharts(), /invalid_response/);
@@ -304,7 +304,7 @@ test("published lists reject empty and invalid continuation cursors", async (t) 
 test("shape validation rejects malformed bootstrap, account and published content payloads", async (t) => {
   let body: unknown;
   t.mock.method(globalThis, "fetch", async () => Response.json(body));
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   client.setSession("active");
   const malformed: [unknown, () => Promise<unknown>][] = [
@@ -390,7 +390,7 @@ test("published chart key reads one scoped page with ordinary browser caching", 
       next_cursor: null,
     });
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   client.setSession("active");
   const query = { locale: "ko-KR", fallbackLocale: "en", cursor: "ignored" };
@@ -408,7 +408,7 @@ test("published chart key reads one scoped page with ordinary browser caching", 
 test("published chart key lookup rejects invalid pages and another chart key", async (t) => {
   let body: unknown;
   t.mock.method(globalThis, "fetch", async () => Response.json(body));
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   client.setSession("active");
   for (const page of [

@@ -14,7 +14,7 @@ if (existsSync(artifactPath)) {
     `${basename(artifactPath)} 배포물이 이미 있습니다. SDK 버전을 올리세요.`,
   );
 }
-const directory = mkdtempSync(join(tmpdir(), "storio-sdk-pack-"));
+const directory = mkdtempSync(join(tmpdir(), "backend-sdk-pack-"));
 try {
   runNpm(
     [

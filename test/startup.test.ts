@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  PlatformClient,
-  PlatformError,
+  Backend,
+  BackendError,
   type Bootstrap,
-} from "@storio/platform-sdk";
+} from "backend-sdk";
 
 const options = {
   baseUrl: "/api/v1",
@@ -45,7 +45,7 @@ test("maintenance takes priority over a required update and leaves credentials u
     update_url: "https://example.com/update",
   };
   t.mock.method(globalThis, "fetch", async () => Response.json(both));
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   const result = await client.startGuestSession(async () =>
     assert.fail("점검 중에는 자격을 읽지 않는다"),
@@ -62,7 +62,7 @@ test("a required update returns its URL without loading guest credentials", asyn
     update_url: "https://example.com/update",
   };
   t.mock.method(globalThis, "fetch", async () => Response.json(required));
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   const result = await client.startGuestSession(async () =>
     assert.fail("업데이트 전에는 자격을 읽지 않는다"),
@@ -103,7 +103,7 @@ test("same guest startup shares pending and successful results with independent 
     );
     return Response.json(progress);
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   const first = new AbortController();
   const canceled = client.startGuestSession(getCredentials, first.signal);
@@ -164,7 +164,7 @@ for (const status of ["maintenance", "update_required"] as const) {
         { status: status === "maintenance" ? 503 : 426 },
       );
     });
-    const client = new PlatformClient(options);
+    const client = new Backend(options);
     t.after(() => client.close());
     const getCredentials = (signal?: AbortSignal) =>
       status === "maintenance"
@@ -192,7 +192,7 @@ test("a failed fetch is temporary, can be retried explicitly and never requests 
       maintenance_message: "점검 중입니다.",
     });
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   const getCredentials = async () =>
     assert.fail("정책이 없으면 자격을 읽지 않는다");
@@ -214,12 +214,12 @@ test("permanent authentication and credential errors propagate", async (t) => {
       ? Response.json({ code: "unauthorized" }, { status: 401 })
       : Response.json(policy),
   );
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   await assert.rejects(
     client.startGuestSession(async () => guest),
     (error: unknown) =>
-      error instanceof PlatformError &&
+      error instanceof BackendError &&
       error.status === 401 &&
       error.code === "unauthorized",
   );
@@ -241,7 +241,7 @@ test("an account switch cancels startup before a delayed credential callback res
     assert.ok(url.endsWith("/game/progress"));
     return Response.json(progress);
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   const pending = client.startGuestSession(() => {
     credentialsRequested.resolve();
@@ -270,7 +270,7 @@ test("canceling the last startup caller prevents a late login response from repl
     );
     return Response.json(progress);
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   client.setSession("existing");
   const caller = new AbortController();

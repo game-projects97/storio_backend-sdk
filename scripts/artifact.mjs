@@ -10,7 +10,7 @@ export const { name: packageName, version } = JSON.parse(
 );
 export const artifactPath = join(
   sdkRoot,
-  `${packageName.slice(1).replace("/", "-")}-${version}.tgz`,
+  `${packageName.replace(/^@/, "").replace("/", "-")}-${version}.tgz`,
 );
 
 export function run(command, args, cwd) {
@@ -35,7 +35,7 @@ export function runNpm(args, cwd) {
 }
 
 export async function withSdkInstallation(use) {
-  const directory = mkdtempSync(join(tmpdir(), "storio-sdk-install-"));
+  const directory = mkdtempSync(join(tmpdir(), "backend-sdk-install-"));
   try {
     runNpm(
       [
@@ -58,9 +58,9 @@ export async function withSdkInstallation(use) {
   }
 }
 
-export function withPlatformSdk(use) {
+export function withBackendSdk(use) {
   return withSdkInstallation(async (directory) => {
-    const entry = join(directory, "storio-sdk.mjs");
+    const entry = join(directory, "backend-sdk.mjs");
     writeFileSync(entry, `export * from ${JSON.stringify(packageName)};\n`);
     return use(await import(pathToFileURL(entry)));
   });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { PlatformClient, PlatformError } from "@storio/platform-sdk";
+import { Backend, BackendError } from "backend-sdk";
 
 const options = {
   baseUrl: "/api/v1",
@@ -65,7 +65,7 @@ for (const kind of ["custom login", "guest startup"] as const) {
         return old.promise;
       },
     );
-    const client = new PlatformClient(options);
+    const client = new Backend(options);
     t.after(() => client.close());
     const earlier = client.login(guest);
     const newest =
@@ -127,7 +127,7 @@ for (const failure of ["401 response", "expired token"] as const) {
         return Response.json(progress);
       },
     );
-    const client = new PlatformClient(options);
+    const client = new Backend(options);
     t.after(() => client.close());
     client.setSession(
       failure === "401 response"
@@ -143,7 +143,7 @@ for (const failure of ["401 response", "expired token"] as const) {
     await assert.rejects(
       client.readProgress(),
       (error: unknown) =>
-        error instanceof PlatformError &&
+        error instanceof BackendError &&
         error.status === 401 &&
         error.code ===
           (failure === "401 response" ? "unauthorized" : "session_expired"),
@@ -169,7 +169,7 @@ test("an earlier logout response clears the old token and preserves the newer cu
     assert.equal(bearer, "Bearer custom-token");
     return Response.json(progress);
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   client.setSession("original");
   const loggedOut = client.logout();
@@ -191,7 +191,7 @@ test("logout requested after custom login cancels that older account selection",
     assert.ok(url.endsWith("/sessions/custom"));
     return serverLogin.promise;
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   client.setSession("original");
   const loggedIn = client.loginCustom(custom);
@@ -225,7 +225,7 @@ test("old session invalidation preserves guest startup while it creates credenti
     assert.equal(bearer, "Bearer guest-token");
     return Response.json(progress);
   });
-  const client = new PlatformClient(options);
+  const client = new Backend(options);
   t.after(() => client.close());
   client.setSession("original");
   const startup = client.startGuestSession((signal) =>
@@ -235,7 +235,7 @@ test("old session invalidation preserves guest startup while it creates credenti
   await credentialsRequested.promise;
   await assert.rejects(
     client.readProgress(),
-    (error: unknown) => error instanceof PlatformError && error.status === 401,
+    (error: unknown) => error instanceof BackendError && error.status === 401,
   );
   credentialsRequest.resolve(Response.json(guest));
   assert.deepEqual(await startupResult, {

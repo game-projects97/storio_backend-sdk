@@ -1,4 +1,4 @@
-import { PlatformError } from "../api/error.ts";
+import { BackendError } from "../api/error.ts";
 import { gameScope, publishedContentPath } from "../api/paths.ts";
 import {
   parseBootstrap,
@@ -47,7 +47,7 @@ function blockedStartup(policy: Bootstrap): StartupResult | undefined {
 }
 
 function temporaryStartupFailure(error: unknown): boolean {
-  if (error instanceof PlatformError) {
+  if (error instanceof BackendError) {
     return error.status === 408 || error.status === 429 || error.status >= 500;
   }
   return (
@@ -57,7 +57,7 @@ function temporaryStartupFailure(error: unknown): boolean {
 }
 
 /** Storio 게임 클라이언트. 로컬 저장과 계정 이전은 게임에서 처리한다. */
-export class PlatformClient {
+export class Backend {
   private readonly baseUrl: string;
   private readonly scope: string;
   private readonly clientVersion: string;
@@ -238,7 +238,7 @@ export class PlatformClient {
       } catch (error) {
         signal.throwIfAborted();
         if (
-          error instanceof PlatformError &&
+          error instanceof BackendError &&
           (error.code === "maintenance" || error.code === "update_required")
         ) {
           const latest = await this.bootstrap(signal);
@@ -475,7 +475,7 @@ export class PlatformClient {
     if (!this.token) throw new Error("session_required");
     if (this.expiresAt !== undefined && this.expiresAt <= Date.now() / 1000) {
       this.replaceActiveSession();
-      throw new PlatformError(401, "session_expired");
+      throw new BackendError(401, "session_expired");
     }
   }
 
@@ -577,7 +577,7 @@ export class PlatformClient {
         ) {
           this.replaceActiveSession();
         }
-        throw new PlatformError(
+        throw new BackendError(
           response.status,
           problem?.code ?? "request_failed",
         );
