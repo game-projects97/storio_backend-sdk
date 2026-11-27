@@ -1,4 +1,4 @@
-import { gameScope } from "../api/paths.ts";
+import { gameScope } from "./http/paths.ts";
 import type { Environment } from "../types.ts";
 
 function resolveApiBaseUrl(baseUrl: string): string {
@@ -22,7 +22,7 @@ function resolveApiBaseUrl(baseUrl: string): string {
   );
 }
 
-export type ClientOptions = {
+export type BackendOptions = {
   /** 같은 출처의 API 경로(예: /api/v1) 또는 절대 HTTP 오리진을 지정한다. */
   baseUrl: string;
   projectId: string;
@@ -33,7 +33,7 @@ export type ClientOptions = {
   refreshBeforeSeconds?: number;
 };
 
-export function resolveClientConfig(options: ClientOptions) {
+export function resolveBackendConfig(options: BackendOptions) {
   if (
     !options.projectId ||
     options.projectId === "." ||

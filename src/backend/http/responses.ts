@@ -7,7 +7,7 @@ import type {
   PublishedChartsPage,
   PublishedNoticesPage,
   Session,
-} from "../types.ts";
+} from "../../types.ts";
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

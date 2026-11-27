@@ -1,5 +1,5 @@
-export { BackendError } from "./api/error.ts";
-export { Backend } from "./client/platform.ts";
+export { BackendError } from "./backend/http/error.ts";
+export { Backend } from "./backend/sdk.ts";
 export type {
   Bootstrap,
   GuestCredentials,

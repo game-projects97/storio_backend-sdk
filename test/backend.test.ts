@@ -5,7 +5,7 @@ import { Backend, BackendError } from "backend-sdk";
 const progress = { schema_version: 1 as const, stage: 12, intro_seen: true };
 const save = { expected_version: 0, request_id: "test-request", progress };
 const options = {
-  baseUrl: "https://platform.example",
+  baseUrl: "https://backend.example",
   projectId: "project-one",
   environment: "development" as const,
   clientVersion: "0.9.0",
@@ -40,21 +40,21 @@ test("guest, login, save, read and logout preserve the server contract", async (
     if (init.method === "DELETE") return new Response(null, { status: 204 });
     return Response.json({ version: 1, progress });
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  const credentials = await client.createGuest();
-  await client.login(credentials);
-  const saved = await client.saveProgress(save);
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  const credentials = await backend.createGuest();
+  await backend.login(credentials);
+  const saved = await backend.saveProgress(save);
   assert.equal(saved.version, 1);
-  assert.equal((await client.readProgress()).progress.stage, 12);
-  await client.logout();
+  assert.equal((await backend.readProgress()).progress.stage, 12);
+  await backend.logout();
   assert.equal(
     calls[0].url,
-    "https://platform.example/api/v1/game/project-one/development/guests",
+    "https://backend.example/api/v1/game/project-one/development/guests",
   );
   assert.equal(calls[2].bearer, "Bearer token-one");
   assert.equal(JSON.parse(calls[2].body!).request_id, "test-request");
-  await assert.rejects(client.readProgress(), /session_required/);
+  await assert.rejects(backend.readProgress(), /session_required/);
 });
 
 test("duplicate in-flight saves share one request; changed input is rejected", async (t) => {
@@ -66,13 +66,13 @@ test("duplicate in-flight saves share one request; changed input is rejected", a
       finish = resolve;
     });
   });
-  const client = new Backend({ ...options, timeoutMs: 1000 });
-  client.setSession("one");
-  t.after(() => client.close());
-  const first = client.saveProgress(save);
-  const second = client.saveProgress(structuredClone(save));
+  const backend = new Backend({ ...options, timeoutMs: 1000 });
+  backend.setSession("one");
+  t.after(() => backend.close());
+  const first = backend.saveProgress(save);
+  const second = backend.saveProgress(structuredClone(save));
   await assert.rejects(
-    client.saveProgress({ ...save, expected_version: 3 }),
+    backend.saveProgress({ ...save, expected_version: 3 }),
     /request_id_reused/,
   );
   assert.equal(count, 1);
@@ -88,25 +88,25 @@ test("switching account and closing reject delayed responses even if fetch ignor
     "fetch",
     () => new Promise<Response>((resolve) => pending.push(resolve)),
   );
-  const client = new Backend({ ...options, timeoutMs: 1000 });
-  client.setSession("old");
-  t.after(() => client.close());
-  const beforeSwitch = client.readProgress();
-  client.setSession("new");
+  const backend = new Backend({ ...options, timeoutMs: 1000 });
+  backend.setSession("old");
+  t.after(() => backend.close());
+  const beforeSwitch = backend.readProgress();
+  backend.setSession("new");
   pending.shift()!(Response.json({ version: 99, progress }));
   await assert.rejects(
     beforeSwitch,
     (error: Error) => error.name === "AbortError",
   );
-  const beforeClose = client.readProgress();
-  client.close();
+  const beforeClose = backend.readProgress();
+  backend.close();
   pending.shift()!(Response.json({ version: 99, progress }));
   await assert.rejects(
     beforeClose,
     (error: Error) => error.name === "AbortError",
   );
-  await assert.rejects(client.createGuest(), /client_closed/);
-  assert.throws(() => client.setSession("later"), /client_closed/);
+  await assert.rejects(backend.createGuest(), /client_closed/);
+  assert.throws(() => backend.setSession("later"), /client_closed/);
 });
 
 test("deadline and caller cancellation reach fetch without retry", async (t) => {
@@ -121,20 +121,20 @@ test("deadline and caller cancellation reach fetch without retry", async (t) => 
       );
     });
   });
-  const client = new Backend(options);
-  client.setSession("one");
-  t.after(() => client.close());
+  const backend = new Backend(options);
+  backend.setSession("one");
+  t.after(() => backend.close());
   await assert.rejects(
-    client.readProgress(),
+    backend.readProgress(),
     (error: Error) => error.name === "TimeoutError",
   );
   const controller = new AbortController();
-  const pending = client.readProgress(controller.signal);
+  const pending = backend.readProgress(controller.signal);
   controller.abort();
   await assert.rejects(pending, (error: Error) => error.name === "AbortError");
   controller.abort();
   await assert.rejects(
-    client.readProgress(controller.signal),
+    backend.readProgress(controller.signal),
     (error: Error) => error.name === "AbortError",
   );
   assert.equal(count, 2);
@@ -146,11 +146,11 @@ test("conflict stays explicit without a read or overwrite retry", async (t) => {
     count += 1;
     return Response.json({ code: "version_conflict" }, { status: 409 });
   });
-  const client = new Backend(options);
-  client.setSession("one");
-  t.after(() => client.close());
+  const backend = new Backend(options);
+  backend.setSession("one");
+  t.after(() => backend.close());
   await assert.rejects(
-    client.saveProgress(save),
+    backend.saveProgress(save),
     (error: unknown) =>
       error instanceof BackendError &&
       error.status === 409 &&
@@ -170,11 +170,11 @@ test("refresh changes the token for subsequent requests", async (t) => {
         })
       : Response.json({ version: 1, progress });
   });
-  const client = new Backend(options);
-  client.setSession("one");
-  t.after(() => client.close());
-  await client.refreshSession();
-  await client.readProgress();
+  const backend = new Backend(options);
+  backend.setSession("one");
+  t.after(() => backend.close());
+  await backend.refreshSession();
+  await backend.readProgress();
   assert.equal(lastBearer, "Bearer rotated");
 });
 
@@ -214,21 +214,21 @@ test("bootstrap uses a same-origin browser path and sends no session", async (t)
       update_url: "",
     });
   });
-  const client = new Backend({
+  const backend = new Backend({
     ...options,
     baseUrl: "/api/v1/",
     clientVersion: "1.0.0",
   });
-  t.after(() => client.close());
-  client.setSession("existing");
-  assert.equal((await client.bootstrap()).policy_revision, 2);
+  t.after(() => backend.close());
+  backend.setSession("existing");
+  assert.equal((await backend.bootstrap()).policy_revision, 2);
 });
 
 test("published charts preserve query parameters and use the active bearer", async (t) => {
   t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
     assert.equal(
       url,
-      "https://platform.example/api/v1/game/content/chart?locale=ko-KR&fallback_locale=en&cursor=123e4567-e89b-42d3-a456-426614174000",
+      "https://backend.example/api/v1/game/content/chart?locale=ko-KR&fallback_locale=en&cursor=123e4567-e89b-42d3-a456-426614174000",
     );
     assert.equal(
       new Headers(init.headers).get("Authorization"),
@@ -239,10 +239,10 @@ test("published charts preserve query parameters and use the active bearer", asy
       next_cursor: "123e4567-e89b-42d3-a456-426614174001",
     });
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("active");
-  const result = await client.readPublishedCharts({
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("active");
+  const result = await backend.readPublishedCharts({
     locale: "ko-KR",
     fallbackLocale: "en",
     cursor: "123e4567-e89b-42d3-a456-426614174000",
@@ -256,10 +256,10 @@ test("malformed success JSON rejects without exposing response body text", async
     "fetch",
     async () => new Response("<test-private-body>"),
   );
-  const client = new Backend(options);
-  t.after(() => client.close());
+  const backend = new Backend(options);
+  t.after(() => backend.close());
   await assert.rejects(
-    client.bootstrap(),
+    backend.bootstrap(),
     (error: unknown) =>
       error instanceof Error &&
       error.message === "invalid_response" &&
@@ -281,16 +281,16 @@ test("malformed refresh responses do not replace the current token", async (t) =
       return Response.json(responses.shift());
     return Response.json({ version: 1, progress });
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("existing");
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("existing");
   for (const response of [...responses]) {
     await assert.rejects(
-      client.refreshSession(),
+      backend.refreshSession(),
       /invalid_response/,
       JSON.stringify(response),
     );
-    assert.equal((await client.readProgress()).version, 1);
+    assert.equal((await backend.readProgress()).version, 1);
   }
 });
 
@@ -300,11 +300,11 @@ test("non-JSON HTTP failures retain status without success-shaped results", asyn
     "fetch",
     async () => new Response("unavailable", { status: 503 }),
   );
-  const client = new Backend(options);
-  client.setSession("one");
-  t.after(() => client.close());
+  const backend = new Backend(options);
+  backend.setSession("one");
+  t.after(() => backend.close());
   await assert.rejects(
-    client.readProgress(),
+    backend.readProgress(),
     (error: unknown) =>
       error instanceof BackendError &&
       error.status === 503 &&
@@ -322,12 +322,12 @@ test("a duplicate caller can cancel its wait without aborting the first save", a
         finish = resolve;
       }),
   );
-  const client = new Backend({ ...options, timeoutMs: 1000 });
-  client.setSession("one");
-  t.after(() => client.close());
-  const first = client.saveProgress(save);
+  const backend = new Backend({ ...options, timeoutMs: 1000 });
+  backend.setSession("one");
+  t.after(() => backend.close());
+  const first = backend.saveProgress(save);
   const caller = new AbortController();
-  const second = client.saveProgress(save, caller.signal);
+  const second = backend.saveProgress(save, caller.signal);
   caller.abort();
   await assert.rejects(second, (error: Error) => error.name === "AbortError");
   finish(Response.json({ version: 1, progress }));
@@ -335,8 +335,8 @@ test("a duplicate caller can cancel its wait without aborting the first save", a
 });
 
 test("an account switch between parsing and login completion keeps the new token", async (t) => {
-  const client = new Backend(options);
-  t.after(() => client.close());
+  const backend = new Backend(options);
+  t.after(() => backend.close());
   let bearer = "";
   t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
     if (url.endsWith("/sessions")) {
@@ -345,7 +345,7 @@ test("an account switch between parsing and login completion keeps the new token
         expires_at: Math.floor(Date.now() / 1000) + 3600,
       });
       response.json = async () => {
-        queueMicrotask(() => queueMicrotask(() => client.setSession("new")));
+        queueMicrotask(() => queueMicrotask(() => backend.setSession("new")));
         return {
           token: "late",
           expires_at: Math.floor(Date.now() / 1000) + 3600,
@@ -357,10 +357,10 @@ test("an account switch between parsing and login completion keeps the new token
     return Response.json({ version: 1, progress });
   });
   await assert.rejects(
-    client.login({ player_id: "old", credential: "old" }),
+    backend.login({ player_id: "old", credential: "old" }),
     (error: Error) => error.name === "AbortError",
   );
-  await client.readProgress();
+  await backend.readProgress();
   assert.equal(bearer, "Bearer new");
 });
 
@@ -373,18 +373,18 @@ test("a pre-aborted guest login leaves the active session and requests intact", 
       ? pending.promise
       : Promise.resolve(Response.json({ version: 1, progress }));
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("existing");
-  const read = client.readProgress();
-  const login = client.login(
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("existing");
+  const read = backend.readProgress();
+  const login = backend.login(
     { player_id: "guest", credential: "secret" },
     AbortSignal.abort(),
   );
   pending.resolve(Response.json({ version: 1, progress }));
   await assert.rejects(login, { name: "AbortError" });
   assert.equal((await read).version, 1);
-  await client.readProgress();
+  await backend.readProgress();
   assert.deepEqual(calls, ["Bearer existing", "Bearer existing"]);
 });
 
@@ -399,13 +399,13 @@ test("caller abort after parsing guest login prevents installing the response to
     };
     return response;
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
+  const backend = new Backend(options);
+  t.after(() => backend.close());
   await assert.rejects(
-    client.login({ player_id: "guest", credential: "secret" }, caller.signal),
+    backend.login({ player_id: "guest", credential: "secret" }, caller.signal),
     { name: "AbortError" },
   );
-  await assert.rejects(client.readProgress(), /session_required/);
+  await assert.rejects(backend.readProgress(), /session_required/);
 });
 
 test("near-expiry requests and manual refresh share one rotation before sending", async (t) => {
@@ -419,12 +419,12 @@ test("near-expiry requests and manual refresh share one rotation before sending"
       });
     return Promise.resolve(Response.json({ version: 1, progress }));
   });
-  const client = new Backend({ ...options, timeoutMs: 1000 });
-  t.after(() => client.close());
-  client.setSession({ token: "old", expires_at: Date.now() / 1000 + 30 });
-  const read = client.readProgress();
-  const write = client.saveProgress(save);
-  const refresh = client.refreshSession();
+  const backend = new Backend({ ...options, timeoutMs: 1000 });
+  t.after(() => backend.close());
+  backend.setSession({ token: "old", expires_at: Date.now() / 1000 + 30 });
+  const read = backend.readProgress();
+  const write = backend.saveProgress(save);
+  const refresh = backend.refreshSession();
   assert.equal(calls.length, 1);
   assert.equal(calls[0].bearer, "Bearer old");
   finish(Response.json({ token: "new", expires_at: Date.now() / 1000 + 3600 }));
@@ -439,19 +439,19 @@ test("expired sessions cannot refresh or send mutations and require login", asyn
     calls++;
     return Response.json({});
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
+  const backend = new Backend(options);
+  t.after(() => backend.close());
   for (const operation of [
-    () => client.refreshSession(),
-    () => client.saveProgress(save),
+    () => backend.refreshSession(),
+    () => backend.saveProgress(save),
   ]) {
-    client.setSession({ token: "expired", expires_at: Date.now() / 1000 - 1 });
+    backend.setSession({ token: "expired", expires_at: Date.now() / 1000 - 1 });
     await assert.rejects(
       operation(),
       (error: unknown) =>
         error instanceof BackendError && error.code === "session_expired",
     );
-    await assert.rejects(client.readProgress(), /session_required/);
+    await assert.rejects(backend.readProgress(), /session_required/);
   }
   assert.equal(calls, 0);
 });
@@ -462,14 +462,14 @@ test("401 clears current session without retrying or refreshing a mutation", asy
     calls++;
     return Response.json({ code: "unauthorized" }, { status: 401 });
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("revoked");
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("revoked");
   await assert.rejects(
-    client.saveProgress(save),
+    backend.saveProgress(save),
     (error: unknown) => error instanceof BackendError && error.status === 401,
   );
-  await assert.rejects(client.refreshSession(), /session_required/);
+  await assert.rejects(backend.refreshSession(), /session_required/);
   assert.equal(calls, 1);
 });
 
@@ -484,12 +484,12 @@ test("canceling a refresh waiter does not cancel shared rotation", async (t) => 
       finish = resolve;
     });
   });
-  const client = new Backend({ ...options, timeoutMs: 1000 });
-  t.after(() => client.close());
-  client.setSession("one");
+  const backend = new Backend({ ...options, timeoutMs: 1000 });
+  t.after(() => backend.close());
+  backend.setSession("one");
   const controller = new AbortController();
-  const first = client.refreshSession(controller.signal);
-  const second = client.refreshSession();
+  const first = backend.refreshSession(controller.signal);
+  const second = backend.refreshSession();
   controller.abort();
   await assert.rejects(first, (error: Error) => error.name === "AbortError");
   assert.equal(transportSignal.aborted, false);
@@ -511,11 +511,11 @@ test("account switch prevents delayed refresh from overwriting new account", asy
     bearer = new Headers(init.headers).get("Authorization")!;
     return Promise.resolve(Response.json({ version: 1, progress }));
   });
-  const client = new Backend({ ...options, timeoutMs: 1000 });
-  t.after(() => client.close());
-  client.setSession("old-account");
-  const refresh = client.refreshSession();
-  client.setSession("new-account");
+  const backend = new Backend({ ...options, timeoutMs: 1000 });
+  t.after(() => backend.close());
+  backend.setSession("old-account");
+  const refresh = backend.refreshSession();
+  backend.setSession("new-account");
   finish(
     Response.json({
       token: "late-old-account",
@@ -523,7 +523,7 @@ test("account switch prevents delayed refresh from overwriting new account", asy
     }),
   );
   await assert.rejects(refresh, (error: Error) => error.name === "AbortError");
-  await client.readProgress();
+  await backend.readProgress();
   assert.equal(bearer, "Bearer new-account");
 });
 
@@ -542,17 +542,17 @@ test("late 401 for rotated token cannot clear new session", async (t) => {
     assert.equal(new Headers(init.headers).get("Authorization"), "Bearer new");
     return Promise.resolve(Response.json({ version: 1, progress }));
   });
-  const client = new Backend({ ...options, timeoutMs: 1000 });
-  t.after(() => client.close());
-  client.setSession("old");
-  const read = client.readProgress();
-  await client.refreshSession();
+  const backend = new Backend({ ...options, timeoutMs: 1000 });
+  t.after(() => backend.close());
+  backend.setSession("old");
+  const read = backend.readProgress();
+  await backend.refreshSession();
   finish(Response.json({ code: "unauthorized" }, { status: 401 }));
   await assert.rejects(
     read,
     (error: unknown) => error instanceof BackendError && error.status === 401,
   );
-  await client.readProgress();
+  await backend.readProgress();
 });
 
 test("failed pre-expiry refresh never sends the waiting mutation", async (t) => {
@@ -561,11 +561,11 @@ test("failed pre-expiry refresh never sends the waiting mutation", async (t) => 
     calls.push(url);
     return Response.json({ code: "unavailable" }, { status: 503 });
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession({ token: "old", expires_at: Date.now() / 1000 + 30 });
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession({ token: "old", expires_at: Date.now() / 1000 + 30 });
   await assert.rejects(
-    client.saveProgress(save),
+    backend.saveProgress(save),
     (error: unknown) => error instanceof BackendError && error.status === 503,
   );
   assert.equal(calls.length, 1);
@@ -591,11 +591,11 @@ test("old-token 401 before refresh completes does not abort successful rotation"
     assert.equal(new Headers(init.headers).get("Authorization"), "Bearer new");
     return Promise.resolve(Response.json({ version: 1, progress }));
   });
-  const client = new Backend({ ...options, timeoutMs: 1000 });
-  t.after(() => client.close());
-  client.setSession("old");
-  const read = client.readProgress();
-  const refresh = client.refreshSession();
+  const backend = new Backend({ ...options, timeoutMs: 1000 });
+  t.after(() => backend.close());
+  backend.setSession("old");
+  const read = backend.readProgress();
+  const refresh = backend.refreshSession();
   finishRead(Response.json({ code: "unauthorized" }, { status: 401 }));
   await assert.rejects(
     read,
@@ -606,7 +606,7 @@ test("old-token 401 before refresh completes does not abort successful rotation"
     Response.json({ token: "new", expires_at: Date.now() / 1000 + 3600 }),
   );
   assert.equal((await refresh).token, "new");
-  await client.readProgress();
+  await backend.readProgress();
 });
 
 test("requests and explicit refresh join pending rotation after old token expires", async (t) => {
@@ -628,13 +628,13 @@ test("requests and explicit refresh join pending rotation after old token expire
     assert.equal(new Headers(init.headers).get("Authorization"), "Bearer new");
     return Promise.resolve(Response.json({ version: 1, progress }));
   });
-  const client = new Backend({ ...options, timeoutMs: 1000 });
-  t.after(() => client.close());
-  client.setSession({ token: "old", expires_at: 1001 });
-  const refresh = client.refreshSession();
+  const backend = new Backend({ ...options, timeoutMs: 1000 });
+  t.after(() => backend.close());
+  backend.setSession({ token: "old", expires_at: 1001 });
+  const refresh = backend.refreshSession();
   now = 1_002_000;
-  const read = client.readProgress();
-  const secondRefresh = client.refreshSession();
+  const read = backend.readProgress();
+  const secondRefresh = backend.refreshSession();
   assert.equal(refreshSignal.aborted, false);
   assert.equal(refreshes, 1);
   assert.equal(reads, 0);
@@ -653,11 +653,11 @@ test("401 from shared refresh clears session and rejects waiting requests", asyn
       finishRefresh = resolve;
     });
   });
-  const client = new Backend({ ...options, timeoutMs: 1000 });
-  t.after(() => client.close());
-  client.setSession({ token: "old", expires_at: Date.now() / 1000 + 30 });
-  const refresh = client.refreshSession();
-  const saveResult = client.saveProgress(save);
+  const backend = new Backend({ ...options, timeoutMs: 1000 });
+  t.after(() => backend.close());
+  backend.setSession({ token: "old", expires_at: Date.now() / 1000 + 30 });
+  const refresh = backend.refreshSession();
+  const saveResult = backend.saveProgress(save);
   finishRefresh(Response.json({ code: "unauthorized" }, { status: 401 }));
   const is401 = (error: unknown) =>
     error instanceof BackendError && error.status === 401;
@@ -665,7 +665,7 @@ test("401 from shared refresh clears session and rejects waiting requests", asyn
     assert.rejects(refresh, is401),
     assert.rejects(saveResult, is401),
   ]);
-  await assert.rejects(client.readProgress(), /session_required/);
+  await assert.rejects(backend.readProgress(), /session_required/);
   assert.equal(calls, 1);
 });
 
@@ -684,18 +684,18 @@ test("account switch still cancels requests joining rotation after old expiry", 
     );
     return Promise.resolve(Response.json({ version: 1, progress }));
   });
-  const client = new Backend({ ...options, timeoutMs: 1000 });
-  t.after(() => client.close());
-  client.setSession({ token: "old-account", expires_at: 1001 });
-  const refresh = client.refreshSession();
+  const backend = new Backend({ ...options, timeoutMs: 1000 });
+  t.after(() => backend.close());
+  backend.setSession({ token: "old-account", expires_at: 1001 });
+  const refresh = backend.refreshSession();
   now = 1_002_000;
-  const read = client.readProgress();
-  client.setSession("new-account");
+  const read = backend.readProgress();
+  backend.setSession("new-account");
   finishRefresh(Response.json({ token: "late-old-account", expires_at: 5000 }));
   const isAbort = (error: Error) => error.name === "AbortError";
   await Promise.all([
     assert.rejects(refresh, isAbort),
     assert.rejects(read, isAbort),
   ]);
-  await client.readProgress();
+  await backend.readProgress();
 });

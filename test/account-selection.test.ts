@@ -65,13 +65,13 @@ for (const kind of ["custom login", "guest startup"] as const) {
         return old.promise;
       },
     );
-    const client = new Backend(options);
-    t.after(() => client.close());
-    const earlier = client.login(guest);
+    const backend = new Backend(options);
+    t.after(() => backend.close());
+    const earlier = backend.login(guest);
     const newest =
       kind === "custom login"
-        ? client.loginCustom(custom)
-        : client.startGuestSession(async () => ({
+        ? backend.loginCustom(custom)
+        : backend.startGuestSession(async () => ({
             ...guest,
             player_id: "new-guest",
           }));
@@ -98,7 +98,7 @@ for (const kind of ["custom login", "guest startup"] as const) {
             session: { ...guestSession, token: newToken },
           },
     );
-    assert.equal((await client.readProgress()).version, 1);
+    assert.equal((await backend.readProgress()).version, 1);
   });
 }
 
@@ -127,31 +127,31 @@ for (const failure of ["401 response", "expired token"] as const) {
         return Response.json(progress);
       },
     );
-    const client = new Backend(options);
-    t.after(() => client.close());
-    client.setSession(
+    const backend = new Backend(options);
+    t.after(() => backend.close());
+    backend.setSession(
       failure === "401 response"
         ? "original"
         : { token: "original", expires_at: 1 },
     );
     const pending =
       failure === "401 response"
-        ? client.loginCustom(custom)
-        : client.signupCustom(custom);
+        ? backend.loginCustom(custom)
+        : backend.signupCustom(custom);
     const completion = pending.catch((error: unknown) => error);
     await requested.promise;
     await assert.rejects(
-      client.readProgress(),
+      backend.readProgress(),
       (error: unknown) =>
         error instanceof BackendError &&
         error.status === 401 &&
         error.code ===
           (failure === "401 response" ? "unauthorized" : "session_expired"),
     );
-    await assert.rejects(client.readProgress(), /session_required/);
+    await assert.rejects(backend.readProgress(), /session_required/);
     account.resolve(Response.json(customSession));
     assert.deepEqual(await completion, customSession);
-    assert.equal((await client.readProgress()).version, 1);
+    assert.equal((await backend.readProgress()).version, 1);
   });
 }
 
@@ -169,18 +169,18 @@ test("an earlier logout response clears the old token and preserves the newer cu
     assert.equal(bearer, "Bearer custom-token");
     return Response.json(progress);
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("original");
-  const loggedOut = client.logout();
-  const loggedIn = client.loginCustom(custom);
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("original");
+  const loggedOut = backend.logout();
+  const loggedIn = backend.loginCustom(custom);
   const latestResult = loggedIn.catch((error: unknown) => error);
   serverLogout.resolve(new Response(null, { status: 204 }));
   await loggedOut;
-  await assert.rejects(client.readProgress(), /session_required/);
+  await assert.rejects(backend.readProgress(), /session_required/);
   serverLogin.resolve(Response.json(customSession));
   assert.deepEqual(await latestResult, customSession);
-  assert.equal((await client.readProgress()).version, 1);
+  assert.equal((await backend.readProgress()).version, 1);
 });
 
 test("logout requested after custom login cancels that older account selection", async (t) => {
@@ -191,12 +191,12 @@ test("logout requested after custom login cancels that older account selection",
     assert.ok(url.endsWith("/sessions/custom"));
     return serverLogin.promise;
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("original");
-  const loggedIn = client.loginCustom(custom);
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("original");
+  const loggedIn = backend.loginCustom(custom);
   const canceled = assert.rejects(loggedIn, { name: "AbortError" });
-  const loggedOut = client.logout();
+  const loggedOut = backend.logout();
   const logoutResult = loggedOut.catch((error: unknown) => error);
   serverLogin.resolve(Response.json(customSession));
   try {
@@ -205,7 +205,7 @@ test("logout requested after custom login cancels that older account selection",
     serverLogout.resolve(new Response(null, { status: 204 }));
   }
   assert.equal(await logoutResult, undefined);
-  await assert.rejects(client.readProgress(), /session_required/);
+  await assert.rejects(backend.readProgress(), /session_required/);
 });
 
 test("old session invalidation preserves guest startup while it creates credentials", async (t) => {
@@ -225,16 +225,16 @@ test("old session invalidation preserves guest startup while it creates credenti
     assert.equal(bearer, "Bearer guest-token");
     return Response.json(progress);
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("original");
-  const startup = client.startGuestSession((signal) =>
-    client.createGuest(signal),
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("original");
+  const startup = backend.startGuestSession((signal) =>
+    backend.createGuest(signal),
   );
   const startupResult = startup.catch((error: unknown) => error);
   await credentialsRequested.promise;
   await assert.rejects(
-    client.readProgress(),
+    backend.readProgress(),
     (error: unknown) => error instanceof BackendError && error.status === 401,
   );
   credentialsRequest.resolve(Response.json(guest));
@@ -243,5 +243,5 @@ test("old session invalidation preserves guest startup while it creates credenti
     policy,
     session: guestSession,
   });
-  assert.equal((await client.readProgress()).version, 1);
+  assert.equal((await backend.readProgress()).version, 1);
 });

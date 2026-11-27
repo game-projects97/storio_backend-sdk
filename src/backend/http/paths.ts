@@ -1,4 +1,4 @@
-import type { Environment, PublishedContentOptions } from "../types.ts";
+import type { Environment, PublishedContentOptions } from "../../types.ts";
 
 export function gameScope(projectId: string, environment: Environment): string {
   return `/game/${encodeURIComponent(projectId)}/${environment}`;

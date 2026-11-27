@@ -87,17 +87,17 @@ test("custom signup and login apply the new session only after a valid response"
     auth.push(bearer);
     return Response.json(saved);
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("previous");
-  const pending = client.signupCustom(credentials);
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("previous");
+  const pending = backend.signupCustom(credentials);
   await signupRequested.promise;
-  await client.readProgress();
+  await backend.readProgress();
   signup.resolve(Response.json(customSession, { status: 201 }));
   assert.deepEqual(await pending, customSession);
-  await client.readProgress();
-  assert.equal((await client.loginCustom(credentials)).player_id, "player-old");
-  await client.readProgress();
+  await backend.readProgress();
+  assert.equal((await backend.loginCustom(credentials)).player_id, "player-old");
+  await backend.readProgress();
   assert.deepEqual(auth, [
     "Bearer previous",
     "Bearer custom-token",
@@ -120,15 +120,15 @@ test("an older custom login cannot win after a newer account selection", async (
     );
     return Response.json(saved);
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  const oldLogin = client.loginCustom(credentials);
-  const newLogin = client.loginCustom({ ...credentials, custom_id: "second" });
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  const oldLogin = backend.loginCustom(credentials);
+  const newLogin = backend.loginCustom({ ...credentials, custom_id: "second" });
   oldRequest.resolve(Response.json(customSession));
   await assert.rejects(oldLogin, { name: "AbortError" });
   newRequest.resolve(Response.json({ ...customSession, token: "chosen" }));
   assert.equal((await newLogin).token, "chosen");
-  await client.readProgress();
+  await backend.readProgress();
 });
 
 test("failed or canceled custom authentication keeps the current session", async (t) => {
@@ -155,22 +155,22 @@ test("failed or canceled custom authentication keeps the current session", async
     );
     return Response.json(saved);
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("previous");
-  await assert.rejects(client.signupCustom(credentials, AbortSignal.abort()), {
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("previous");
+  await assert.rejects(backend.signupCustom(credentials, AbortSignal.abort()), {
     name: "AbortError",
   });
   assert.equal(signupCalls, 0);
   await assert.rejects(
-    client.signupCustom(credentials),
+    backend.signupCustom(credentials),
     (error: unknown) => error instanceof BackendError && error.status === 409,
   );
-  await assert.rejects(client.loginCustom(credentials, aborted.signal), {
+  await assert.rejects(backend.loginCustom(credentials, aborted.signal), {
     name: "AbortError",
   });
   assert.equal(logins, 1);
-  assert.equal((await client.readProgress()).version, 6);
+  assert.equal((await backend.readProgress()).version, 6);
 });
 
 test("link response loss is returned and explicit replay keeps the original player and progress", async (t) => {
@@ -201,26 +201,26 @@ test("link response loss is returned and explicit replay keeps the original play
     bearerHistory.push(bearer);
     return Response.json(saved);
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
+  const backend = new Backend(options);
+  t.after(() => backend.close());
   const originalPlayerId = "player-old";
-  client.setSession("guest-token");
+  backend.setSession("guest-token");
   await assert.rejects(
-    client.linkGuestToCustom(credentials),
+    backend.linkGuestToCustom(credentials),
     (error: unknown) => error === responseLost,
   );
   assert.equal(linkRequests, 1);
-  assert.deepEqual(await client.readProgress(), saved);
-  const linked = await client.linkGuestToCustom(credentials);
+  assert.deepEqual(await backend.readProgress(), saved);
+  const linked = await backend.linkGuestToCustom(credentials);
   assert.equal(linked.player_id, originalPlayerId);
   assert.equal(linked.kind, "custom");
   assert.equal(linked.custom_id, credentials.custom_id);
-  assert.deepEqual(await client.readProgress(), saved);
+  assert.deepEqual(await backend.readProgress(), saved);
   assert.equal(
-    (await client.loginCustom(credentials)).player_id,
+    (await backend.loginCustom(credentials)).player_id,
     originalPlayerId,
   );
-  assert.deepEqual(await client.readProgress(), saved);
+  assert.deepEqual(await backend.readProgress(), saved);
   assert.deepEqual(bearerHistory, [
     "Bearer guest-token",
     "Bearer guest-token",
@@ -239,14 +239,14 @@ test("link rejects an authentication error without clearing an otherwise valid s
       ? Response.json({ code: "unauthorized" }, { status: 401 })
       : Response.json(saved);
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("guest-token");
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("guest-token");
   await assert.rejects(
-    client.linkGuestToCustom(credentials),
+    backend.linkGuestToCustom(credentials),
     (error: unknown) => error instanceof BackendError && error.status === 401,
   );
-  assert.equal((await client.readProgress()).version, 6);
+  assert.equal((await backend.readProgress()).version, 6);
 });
 
 test("published notices and charts return the actual locale and forward pagination options", async (t) => {
@@ -272,15 +272,15 @@ test("published notices and charts return the actual locale and forward paginati
     assert.ok(parsed.pathname.endsWith("/chart"));
     return Response.json({ items: [chart], next_cursor: null });
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("active");
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("active");
   const query = { locale: "ko-KR", fallbackLocale: "en", cursor };
-  assert.deepEqual(await client.readPublishedNotices(query), {
+  assert.deepEqual(await backend.readPublishedNotices(query), {
     items: [{ ...notice, id: noticeCursor }],
     next_cursor: noticeCursor,
   });
-  assert.deepEqual(await client.readPublishedCharts(query), {
+  assert.deepEqual(await backend.readPublishedCharts(query), {
     items: [chart],
     next_cursor: null,
   });
@@ -294,43 +294,43 @@ test("published lists reject empty and invalid continuation cursors", async (t) 
         : { items: [notice], next_cursor: "not-a-uuid" },
     ),
   );
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("active");
-  await assert.rejects(client.readPublishedCharts(), /invalid_response/);
-  await assert.rejects(client.readPublishedNotices(), /invalid_response/);
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("active");
+  await assert.rejects(backend.readPublishedCharts(), /invalid_response/);
+  await assert.rejects(backend.readPublishedNotices(), /invalid_response/);
 });
 
 test("shape validation rejects malformed bootstrap, account and published content payloads", async (t) => {
   let body: unknown;
   t.mock.method(globalThis, "fetch", async () => Response.json(body));
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("active");
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("active");
   const malformed: [unknown, () => Promise<unknown>][] = [
-    [{ ...policy, version_status: "obsolete" }, () => client.bootstrap()],
-    [{ ...policy, project_id: "other" }, () => client.bootstrap()],
-    [{ ...policy, maintenance_message: null }, () => client.bootstrap()],
+    [{ ...policy, version_status: "obsolete" }, () => backend.bootstrap()],
+    [{ ...policy, project_id: "other" }, () => backend.bootstrap()],
+    [{ ...policy, maintenance_message: null }, () => backend.bootstrap()],
     [
       { ...customSession, kind: "guest" },
-      () => client.signupCustom(credentials),
+      () => backend.signupCustom(credentials),
     ],
     [
       { ...customSession, token_type: "Cookie" },
-      () => client.loginCustom(credentials),
+      () => backend.loginCustom(credentials),
     ],
     [
       { ...link, custom_id: undefined },
-      () => client.linkGuestToCustom(credentials),
+      () => backend.linkGuestToCustom(credentials),
     ],
-    [{ items: [notice] }, () => client.readPublishedNotices()],
+    [{ items: [notice] }, () => backend.readPublishedNotices()],
     [
       { items: [{ ...notice, body: { title: "No body" } }], next_cursor: null },
-      () => client.readPublishedNotices(),
+      () => backend.readPublishedNotices(),
     ],
     [
       { items: [{ ...chart, publication_version: "3" }], next_cursor: null },
-      () => client.readPublishedCharts(),
+      () => backend.readPublishedCharts(),
     ],
     [
       {
@@ -345,7 +345,7 @@ test("shape validation rejects malformed bootstrap, account and published conten
         ],
         next_cursor: null,
       },
-      () => client.readPublishedCharts(),
+      () => backend.readPublishedCharts(),
     ],
     [
       {
@@ -360,7 +360,7 @@ test("shape validation rejects malformed bootstrap, account and published conten
         ],
         next_cursor: null,
       },
-      () => client.readPublishedCharts(),
+      () => backend.readPublishedCharts(),
     ],
   ];
   for (const [value, read] of malformed) {
@@ -368,7 +368,7 @@ test("shape validation rejects malformed bootstrap, account and published conten
     await assert.rejects(read, /invalid_response/);
   }
   body = saved;
-  assert.equal((await client.readProgress()).version, 6);
+  assert.equal((await backend.readProgress()).version, 6);
 });
 
 test("published chart key reads one scoped page with ordinary browser caching", async (t) => {
@@ -390,16 +390,16 @@ test("published chart key reads one scoped page with ordinary browser caching", 
       next_cursor: null,
     });
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("active");
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("active");
   const query = { locale: "ko-KR", fallbackLocale: "en", cursor: "ignored" };
   assert.deepEqual(
-    await client.readPublishedChart("battle-rules", query),
+    await backend.readPublishedChart("battle-rules", query),
     chart,
   );
   assert.equal(
-    await client.readPublishedChart("battle-rules", query),
+    await backend.readPublishedChart("battle-rules", query),
     undefined,
   );
   assert.equal(calls, 2);
@@ -408,9 +408,9 @@ test("published chart key reads one scoped page with ordinary browser caching", 
 test("published chart key lookup rejects invalid pages and another chart key", async (t) => {
   let body: unknown;
   t.mock.method(globalThis, "fetch", async () => Response.json(body));
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("active");
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("active");
   for (const page of [
     { items: [chart, chart], next_cursor: null },
     { items: [chart], next_cursor: "123e4567-e89b-42d3-a456-426614174006" },
@@ -418,7 +418,7 @@ test("published chart key lookup rejects invalid pages and another chart key", a
   ]) {
     body = page;
     await assert.rejects(
-      client.readPublishedChart("battle-rules"),
+      backend.readPublishedChart("battle-rules"),
       /invalid_response/,
     );
   }

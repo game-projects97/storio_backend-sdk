@@ -45,9 +45,9 @@ test("maintenance takes priority over a required update and leaves credentials u
     update_url: "https://example.com/update",
   };
   t.mock.method(globalThis, "fetch", async () => Response.json(both));
-  const client = new Backend(options);
-  t.after(() => client.close());
-  const result = await client.startGuestSession(async () =>
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  const result = await backend.startGuestSession(async () =>
     assert.fail("점검 중에는 자격을 읽지 않는다"),
   );
   assert.deepEqual(result, { status: "maintenance", policy: both });
@@ -62,9 +62,9 @@ test("a required update returns its URL without loading guest credentials", asyn
     update_url: "https://example.com/update",
   };
   t.mock.method(globalThis, "fetch", async () => Response.json(required));
-  const client = new Backend(options);
-  t.after(() => client.close());
-  const result = await client.startGuestSession(async () =>
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  const result = await backend.startGuestSession(async () =>
     assert.fail("업데이트 전에는 자격을 읽지 않는다"),
   );
   assert.deepEqual(result, { status: "update_required", policy: required });
@@ -103,11 +103,11 @@ test("same guest startup shares pending and successful results with independent 
     );
     return Response.json(progress);
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
+  const backend = new Backend(options);
+  t.after(() => backend.close());
   const first = new AbortController();
-  const canceled = client.startGuestSession(getCredentials, first.signal);
-  const shared = client.startGuestSession(getCredentials);
+  const canceled = backend.startGuestSession(getCredentials, first.signal);
+  const shared = backend.startGuestSession(getCredentials);
   const innerSignal = await credentialsRequested.promise;
   first.abort();
   assert.equal(innerSignal?.aborted, false);
@@ -118,14 +118,14 @@ test("same guest startup shares pending and successful results with independent 
     policy: recommended,
     session,
   });
-  assert.equal((await client.readProgress()).version, 0);
-  const cached = await client.startGuestSession(getCredentials);
+  assert.equal((await backend.readProgress()).version, 0);
+  const cached = await backend.startGuestSession(getCredentials);
   assert.equal(
     cached.status === "ready" && cached.session.token,
     "guest-token",
   );
-  assert.equal((await client.refreshSession()).token, "rotated");
-  const rotated = await client.startGuestSession(getCredentials);
+  assert.equal((await backend.refreshSession()).token, "rotated");
+  const rotated = await backend.startGuestSession(getCredentials);
   assert.equal(rotated.status === "ready" && rotated.session.token, "rotated");
   assert.equal(credentialReads, 1);
   assert.deepEqual(urls, [
@@ -164,19 +164,19 @@ for (const status of ["maintenance", "update_required"] as const) {
         { status: status === "maintenance" ? 503 : 426 },
       );
     });
-    const client = new Backend(options);
-    t.after(() => client.close());
+    const backend = new Backend(options);
+    t.after(() => backend.close());
     const getCredentials = (signal?: AbortSignal) =>
       status === "maintenance"
-        ? client.createGuest(signal)
+        ? backend.createGuest(signal)
         : Promise.resolve(guest);
-    assert.deepEqual(await client.startGuestSession(getCredentials), {
+    assert.deepEqual(await backend.startGuestSession(getCredentials), {
       status,
       policy: revised,
     });
     assert.equal(reads, 2);
     assert.equal(authenticationRequests, 1);
-    await assert.rejects(client.readProgress(), /session_required/);
+    await assert.rejects(backend.readProgress(), /session_required/);
   });
 }
 
@@ -192,16 +192,16 @@ test("a failed fetch is temporary, can be retried explicitly and never requests 
       maintenance_message: "점검 중입니다.",
     });
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
+  const backend = new Backend(options);
+  t.after(() => backend.close());
   const getCredentials = async () =>
     assert.fail("정책이 없으면 자격을 읽지 않는다");
-  assert.deepEqual(await client.startGuestSession(getCredentials), {
+  assert.deepEqual(await backend.startGuestSession(getCredentials), {
     status: "temporary_failure",
     error: offline,
   });
   assert.equal(
-    (await client.startGuestSession(getCredentials)).status,
+    (await backend.startGuestSession(getCredentials)).status,
     "maintenance",
   );
   assert.equal(count, 2);
@@ -214,17 +214,17 @@ test("permanent authentication and credential errors propagate", async (t) => {
       ? Response.json({ code: "unauthorized" }, { status: 401 })
       : Response.json(policy),
   );
-  const client = new Backend(options);
-  t.after(() => client.close());
+  const backend = new Backend(options);
+  t.after(() => backend.close());
   await assert.rejects(
-    client.startGuestSession(async () => guest),
+    backend.startGuestSession(async () => guest),
     (error: unknown) =>
       error instanceof BackendError &&
       error.status === 401 &&
       error.code === "unauthorized",
   );
   await assert.rejects(
-    client.startGuestSession(async () => {
+    backend.startGuestSession(async () => {
       throw storageError;
     }),
     (error: unknown) => error === storageError,
@@ -241,17 +241,17 @@ test("an account switch cancels startup before a delayed credential callback res
     assert.ok(url.endsWith("/game/progress"));
     return Response.json(progress);
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  const pending = client.startGuestSession(() => {
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  const pending = backend.startGuestSession(() => {
     credentialsRequested.resolve();
     return credentials.promise;
   });
   await credentialsRequested.promise;
-  client.setSession("new-account");
+  backend.setSession("new-account");
   await assert.rejects(pending, { name: "AbortError" });
   credentials.resolve(guest);
-  await client.readProgress();
+  await backend.readProgress();
   assert.deepEqual(auth, ["Bearer new-account"]);
 });
 
@@ -270,15 +270,15 @@ test("canceling the last startup caller prevents a late login response from repl
     );
     return Response.json(progress);
   });
-  const client = new Backend(options);
-  t.after(() => client.close());
-  client.setSession("existing");
+  const backend = new Backend(options);
+  t.after(() => backend.close());
+  backend.setSession("existing");
   const caller = new AbortController();
-  const pending = client.startGuestSession(async () => guest, caller.signal);
+  const pending = backend.startGuestSession(async () => guest, caller.signal);
   const transportSignal = await loginRequested.promise;
   caller.abort();
   assert.equal(transportSignal?.aborted, true);
   await assert.rejects(pending, { name: "AbortError" });
   login.resolve(Response.json(session));
-  assert.equal((await client.readProgress()).version, 0);
+  assert.equal((await backend.readProgress()).version, 0);
 });
