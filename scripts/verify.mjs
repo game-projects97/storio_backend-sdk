@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import { copyFileSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import {
-  artifactPath,
   packageName,
   run,
   sdkRoot,
@@ -18,7 +17,8 @@ function distFiles(directory) {
     .sort();
 }
 
-await withSdkInstallation((directory) => {
+const artifact = process.argv[2];
+await withSdkInstallation((directory, artifactPath) => {
   const installed = join(directory, "node_modules", packageName);
   const manifest = JSON.parse(
     readFileSync(join(installed, "package.json"), "utf8"),
@@ -76,11 +76,10 @@ await withSdkInstallation((directory) => {
     directory,
   );
   run(process.execPath, ["--test", "--test-timeout=3000", ...tests], directory);
-});
-
-const sha256 = createHash("sha256")
-  .update(readFileSync(artifactPath))
-  .digest("hex");
-console.log(
-  `${packageName}@${version} ${basename(artifactPath)} sha256=${sha256}`,
-);
+  const sha256 = createHash("sha256")
+    .update(readFileSync(artifactPath))
+    .digest("hex");
+  console.log(
+    `${packageName}@${version} ${basename(artifactPath)} sha256=${sha256}`,
+  );
+}, artifact);

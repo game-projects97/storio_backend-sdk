@@ -8,10 +8,7 @@ export const sdkRoot = resolve(import.meta.dirname, "..");
 export const { name: packageName, version } = JSON.parse(
   readFileSync(join(sdkRoot, "package.json"), "utf8"),
 );
-export const artifactPath = join(
-  sdkRoot,
-  `${packageName.replace(/^@/, "").replace("/", "-")}-${version}.tgz`,
-);
+export const artifactName = `${packageName.replace(/^@/, "").replace("/", "-")}-${version}.tgz`;
 
 export function run(command, args, cwd) {
   const result = spawnSync(command, args, {
@@ -34,9 +31,25 @@ export function runNpm(args, cwd) {
   }
 }
 
-export async function withSdkInstallation(use) {
+export function packSdk(directory) {
+  runNpm(
+    [
+      "pack",
+      "--ignore-scripts",
+      "--cache",
+      join(directory, ".npm"),
+      "--pack-destination",
+      directory,
+    ],
+    sdkRoot,
+  );
+  return join(directory, artifactName);
+}
+
+export async function withSdkInstallation(use, artifact) {
   const directory = mkdtempSync(join(tmpdir(), "backend-sdk-install-"));
   try {
+    const artifactPath = artifact ? resolve(artifact) : packSdk(directory);
     runNpm(
       [
         "install",
@@ -52,16 +65,17 @@ export async function withSdkInstallation(use) {
       ],
       directory,
     );
-    return await use(directory);
+    return await use(directory, artifactPath);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
 }
 
-export function withBackendSdk(use) {
+export function withBackendSdk(use, artifact) {
+  if (!artifact) runNpm(["run", "build"], sdkRoot);
   return withSdkInstallation(async (directory) => {
     const entry = join(directory, "backend-sdk.mjs");
     writeFileSync(entry, `export * from ${JSON.stringify(packageName)};\n`);
     return use(await import(pathToFileURL(entry)));
-  });
+  }, artifact);
 }
